@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>For Public Use - Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="config.js"></script>
+<style>
+:root{color-scheme:light dark;--bg:#f1f5f9;--card:#fff;--line:#e2e8f0;--text:#0f172a;--mute:#64748b;--acc:#0e7490;--inp:#f8fafc}
+@media (prefers-color-scheme:dark){:root{--bg:#020617;--card:#0f172a;--line:#1e293b;--text:#f1f5f9;--mute:#94a3b8;--acc:#22d3ee;--inp:#020617}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px}
+input,select,textarea{font:inherit;width:100%;background:var(--inp);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;color:var(--text)}
+label{display:block;font-size:12px;font-weight:600;color:var(--mute);margin:10px 0 4px}
+button{cursor:pointer;border:0;font:inherit}
+.btn{background:#0891b2;color:#fff;font-weight:600;border-radius:12px;padding:10px 16px}
+.btn2{background:var(--inp);border:1px solid var(--line);color:var(--text);font-weight:600;border-radius:12px;padding:10px 16px}
+.lnk{background:none;color:var(--acc);font-weight:600;font-size:12px;padding:2px 4px}
+.mute{color:var(--mute)}.hide{display:none!important}
+.grid{display:grid;gap:12px}.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}.main{grid-template-columns:1fr}
+@media(min-width:760px){.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.main{grid-template-columns:320px 1fr}}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.stat b{display:block;font-size:22px}
+table{width:100%;border-collapse:collapse}td{padding:10px 6px;border-top:1px solid var(--line);vertical-align:top}
+.scroll{overflow-x:auto}
+.pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;display:inline-block}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));background:#0f172a;color:#fff;padding:10px 16px;border-radius:12px;z-index:60}
+#modal{position:fixed;inset:0;background:rgba(2,6,23,.85);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;overflow:auto}
+</style>
+<link rel="manifest" href="/manifest-admin.json">
+<meta name="theme-color" content="#111d5c">
+<link rel="apple-touch-icon" href="/apple-touch-admin.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FPU Admin">
+</head>
+<body>
+<div id="toast" class="hide"></div>
+
+<!-- LOGIN -->
+<div id="login" class="wrap hide" style="max-width:420px;margin-top:8vh">
+ <div class="card">
+  <h2 style="margin:0 0 4px">🎟️ For Public Use</h2>
+  <p class="mute" style="margin:0 0 8px">Admin login</p>
+  <form onsubmit="doLogin(event)">
+   <label>Email</label><input id="l-email" type="email" required autocomplete="username">
+   <label>Password</label><input id="l-pass" type="password" required autocomplete="current-password">
+   <button class="btn" style="width:100%;margin-top:16px">Log in</button>
+  </form>
+ </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="wrap hide">
+ <div class="row" style="margin-bottom:16px">
+  <div><b style="font-size:18px">🎟️ For Public Use <span class="mute" style="font-weight:400">Admin</span></b><div id="who" class="mute" style="font-size:11px"></div></div>
+  <div><button class="btn2" onclick="load()">Refresh</button> <button class="btn2" onclick="logout()">Log out</button></div>
+ </div>
+
+ <div class="card">
+  <div class="row"><b>Your event</b><span class="mute" style="font-size:12px">Shown on every ticket</span></div>
+  <div class="grid g3">
+   <div><label>Event name</label><input id="ev-name"></div>
+   <div><label>Date</label><input id="ev-date" type="datetime-local"></div>
+   <div><label>Venue</label><input id="ev-venue"></div>
+   <div><label>Capacity (blank = no limit)</label><input id="ev-cap" type="number" min="1"></div>
+  </div>
+  <button class="btn" style="margin-top:12px" onclick="saveEvent()">Save event details</button>
+ </div>
+
+ <div class="grid g4" id="stats" style="margin-bottom:16px"></div>
+
+ <div class="card"><b>Gate sales</b>
+  <div class="grid g4" id="gate-stats" style="margin-top:10px"></div>
+  <div id="gate-staff" class="mute" style="font-size:13px;margin-top:10px"></div></div>
+ <div class="card"><div class="row"><b>Ticket prices for gate sales</b><span class="mute" style="font-size:12px">Staff can only sell at these prices. Limit = most tickets of that type (blank = no limit)</span></div>
+  <div id="types" style="margin-top:8px"></div>
+  <form onsubmit="addType(event)" class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="nt-name" placeholder="New ticket type" required><input id="nt-price" type="number" min="0" step="0.01" placeholder="Price (R)" required style="width:130px"><button class="btn">Add</button></form></div>
+
+ <div class="card" id="online"><div class="row"><b>Online ticket sales</b><span id="on-status" class="pill" style="background:#64748b33;color:#64748b">Not connected</span></div>
+  <p class="mute" style="font-size:13px;margin:6px 0 0">Buyers pay by card through the organiser's own Yoco account, so the money goes straight to them. Tick "Online" on a ticket price above to put it on sale (minimum R2).</p>
+  <div class="grid g3">
+   <div><label>Link name (letters, numbers, dashes)</label><input id="on-slug" placeholder="my-event-2026" maxlength="41"></div>
+   <div><label>Support contact shown to buyers</label><input id="on-support" placeholder="help@example.com or 082 123 4567" maxlength="120"></div>
+   <div><label>Max tickets per order</label><input id="on-max" type="number" min="1" max="20" value="6"></div>
+  </div>
+  <label>Event terms (optional, shown before paying)</label><textarea id="on-terms" rows="3" placeholder="Refund policy, age limit, entry rules..."></textarea>
+  <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)"><input type="checkbox" id="on-on" style="width:auto"> Online sales are open</label>
+  <div class="row" style="margin-top:10px;justify-content:flex-start"><button class="btn" onclick="saveOnline()">Save online settings</button><button class="btn2" onclick="copyBuyLink()">Copy buy link</button></div>
+  <div id="on-link" class="mute" style="font-size:12px;margin-top:6px;word-break:break-all"></div>
+  <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+  <b style="font-size:13px">Yoco connection</b>
+  <p class="mute" style="font-size:12px;margin:4px 0 0">In the organiser's Yoco account open Sales, then Online payment tools, then E-commerce integrations (Checkout API) and tap How to connect. Paste the <b>secret</b> key here (starts with sk_test_ or sk_live_). Start with the test key. It is stored on the server and can never be read back from this page.</p>
+  <div class="row" style="margin-top:8px;flex-wrap:nowrap"><input id="on-key" type="password" placeholder="sk_test_..." autocomplete="off"><button class="btn" onclick="connectYoco()">Connect</button><button class="btn2" onclick="disconnectYoco()">Disconnect</button></div>
+  <div id="on-stats" class="grid g4" style="margin-top:14px"></div>
+  <div class="scroll"><table><tbody id="on-orders"></tbody></table></div>
+ </div>
+ <div class="card"><b>End of night report</b>
+  <div id="rp" style="margin-top:8px;font-size:14px;line-height:1.7"></div>
+  <div class="grid g3" style="margin-top:6px">
+   <div><label>Cash counted (R)</label><input id="rp-cash" type="number" step="0.01" oninput="renderReport()"></div>
+   <div><label>EFT confirmed on bank statement (R)</label><input id="rp-eft" type="number" step="0.01" oninput="renderReport()"></div>
+  </div>
+  <div id="rp-diff" style="margin-top:10px;font-weight:700"></div>
+  <button class="btn2" style="margin-top:10px" onclick="copyReport()">Copy report</button> <button class="btn" style="margin-top:10px" onclick="downloadReport()">Download event report</button></div>
+ <div class="card owner-only"><b>Team logins</b><div id="team" class="mute" style="margin-top:8px;font-size:13px;line-height:1.8"></div></div>
+ <details class="card" id="bulk"><summary style="cursor:pointer;font-weight:700">Bulk issue tickets (paste a list or upload a CSV)</summary>
+  <p class="mute" style="font-size:13px">One person per line. Add a phone or email after a comma if you have it, for example <i>Thandi Nkosi, 082 123 4567</i>. A first line that says "Name" is ignored.</p>
+  <textarea id="b-text" rows="6" placeholder="Thandi Nkosi&#10;Sipho Dlamini, 071 234 5678"></textarea>
+  <div style="margin-top:8px"><input id="b-file" type="file" accept=".csv,.txt,text/csv,text/plain" onchange="bulkFile(this)"></div>
+  <div class="grid g3">
+   <div><label>Ticket type / group</label><input id="b-cat" list="b-cats" value="Complimentary"><datalist id="b-cats"><option value="Complimentary"><option value="Choir"><option value="Special Act"><option value="Sponsor"><option value="Staff / Press"><option value="VIP"><option value="General Admission"></datalist></div>
+   <div><label>Price each (R)</label><input id="b-price" type="number" min="0" step="0.01" value="0"></div>
+   <div><label>Payment</label><select id="b-pay"><option value="free">Free / Complimentary</option><option value="paid">Paid</option><option value="unpaid">Not paid yet</option></select></div>
+  </div>
+  <div class="row" style="margin-top:12px;justify-content:flex-start"><button class="btn2" onclick="bulkReview()">Review list</button><button id="b-go" class="btn" disabled style="opacity:.5" onclick="bulkIssue()">Issue tickets</button></div>
+  <div id="b-out" style="margin-top:10px;font-size:13px;line-height:1.6"></div>
+ </details>
+ <details class="card" id="grp"><summary style="cursor:pointer;font-weight:700">Groups: ticket packs and check-in status</summary>
+  <p class="mute" style="font-size:13px">Pick a group (for example Choir) to download all its tickets in one file for one person to hand out, and to see who has arrived.</p>
+  <select id="g-sel" onchange="renderGroup()"></select>
+  <div id="g-sum" style="margin:10px 0;font-size:14px;line-height:1.7"></div>
+  <div class="row" style="justify-content:flex-start"><button class="btn" onclick="groupZip()">Download ticket pack (ZIP)</button><button class="btn2" onclick="copyGroup()">Copy check-in status</button></div>
+ </details>
+ <div class="grid main">
+  <div class="card" style="height:fit-content">
+   <b>Issue a ticket</b>
+   <form onsubmit="createTicket(event)">
+    <label>Name *</label><input id="f-name" required placeholder="e.g. Thandi Nkosi">
+    <label>Email or phone (optional)</label><input id="f-contact" placeholder="082 123 4567">
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">
+     <div><label>Ticket type</label><select id="f-cat" onchange="autoPrice()"><option>General Admission</option><option>VIP</option><option>Early Bird</option><option>Staff / Press</option></select></div>
+     <div><label>Price (R)</label><input id="f-price" type="number" min="0" step="0.01" value="150"></div>
+    </div>
+    <label>Payment</label><select id="f-pay"><option value="paid">Paid</option><option value="free">Free / Complimentary</option><option value="unpaid">Not paid yet</option></select>
+    <button class="btn" style="width:100%;margin-top:16px">Create ticket</button>
+   </form>
+  </div>
+  <div class="card">
+   <div class="row" style="margin-bottom:10px"><b>All tickets</b>
+    <div class="row"><input id="search" placeholder="Search..." oninput="renderTable()" style="width:180px"><button class="btn2" onclick="exportCSV()">Export</button><button class="btn2 owner-only" style="color:#f43f5e" onclick="clearTickets()">Clear all</button></div></div>
+   <div class="scroll"><table><tbody id="rows"></tbody></table></div>
+  </div>
+ </div>
+ <div class="card"><div class="row"><b>Scan history</b><span class="mute" style="font-size:12px">Latest 200 scans and gate sales</span></div>
+  <div class="row" style="margin:10px 0;flex-wrap:nowrap"><input id="sh-q" placeholder="Search name, code or staff email" oninput="renderHistory()">
+   <select id="sh-f" onchange="renderHistory()" style="width:150px"><option value="all">All</option><option value="ok">Admitted</option><option value="no">Refused</option><option value="sale">Gate sales</option></select><button class="btn2" onclick="clearHist()">Reset filters</button></div>
+  <div class="scroll"><table><tbody id="sh-rows"></tbody></table></div></div>
+ <div class="card owner-only" style="border-color:#f43f5e55"><b style="color:#f43f5e">Clear scan history</b>
+  <p class="mute" style="font-size:13px">Permanently deletes every scan record. Tickets, check-in status and sales are not affected. A backup file downloads first.</p>
+  <button class="btn2" style="color:#f43f5e" onclick="clearScans()">Clear scan history...</button></div>
+</div>
+
+<!-- TICKET POPUP -->
+<div id="modal" class="hide">
+ <div style="max-width:380px;width:100%">
+  <div id="ticket" style="background:linear-gradient(135deg,#0f172a,#164e63);color:#fff;border:2px solid #22d3ee55;border-radius:24px;padding:24px">
+   <div style="font-size:11px;letter-spacing:.15em;color:#67e8f9">FOR PUBLIC USE</div>
+   <div id="tk-event" style="font-size:20px;font-weight:800"></div>
+   <div id="tk-when" style="color:#cbd5e1;font-size:13px;margin-bottom:14px"></div>
+   <div class="grid" style="grid-template-columns:1fr 1fr;font-size:13px">
+    <div><div style="color:#94a3b8;font-size:11px">Name</div><b id="tk-name"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Type</div><b id="tk-cat"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Code</div><b id="tk-code" style="font-family:monospace;color:#67e8f9"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Payment</div><b id="tk-pay"></b></div>
+   </div>
+   <div style="display:flex;justify-content:center;margin:18px 0 8px"><div id="tk-qr" style="background:#fff;padding:12px;border-radius:12px"></div></div>
+   <div style="text-align:center;font-size:11px;color:#94a3b8">Show this QR code at the entrance</div>
+  </div>
+  <div class="row" style="margin-top:12px;flex-wrap:nowrap">
+   <button class="btn" style="flex:1" onclick="downloadTicket()">Download</button>
+   <button class="btn2" style="flex:1" onclick="shareWA()">WhatsApp</button>
+   <button class="btn2" onclick="$('modal').classList.add('hide')">Close</button>
+  </div>
+ </div>
+</div>
+
+<script>
+/* ====== PASTE YOUR PUBLISHABLE KEY BELOW (starts with sb_publishable_) ====== */
+const CFG=window.FPU_CONFIG||{};
+const SUPABASE_URL=CFG.SUPABASE_URL||'https://nchnjiwntronxgwrvjuz.supabase.co';
+const SUPABASE_KEY=(CFG.SUPABASE_KEY&&!CFG.SUPABASE_KEY.startsWith('PASTE'))?CFG.SUPABASE_KEY:'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
+/* ============================================================================ */
+try{Object.keys(localStorage).filter(k=>k.startsWith('sb-')).forEach(k=>localStorage.removeItem(k))}catch(e){}
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storage:window.sessionStorage}});
+const IDLE_MIN=15;let authed=false,idleT=null;
+function bump(){if(!authed)return;clearTimeout(idleT);idleT=setTimeout(async()=>{await logout();toast('Signed out after '+IDLE_MIN+' minutes of inactivity')},IDLE_MIN*60000)}
+['click','keydown','touchstart','pointerdown','scroll'].forEach(e=>addEventListener(e,bump,{passive:true}));
+const $=id=>document.getElementById(id);
+const PRICES={'General Admission':150,'VIP':350,'Early Bird':100,'Staff / Press':0};
+const zar=n=>new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(n||0);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const isoOk=v=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v||'');
+const toInput=v=>isoOk(v)?v.slice(0,16):'';
+const fmtDate=v=>isoOk(v)?new Date(v).toLocaleString('en-ZA',{weekday:'short',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):(v||'');
+let ROLE='',TY=[],EV=null,T=[],me=null,cur=null,timer=null;
+
+function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.add('hide'),3500)}
+function view(v){$('login').classList.toggle('hide',v!=='login');$('app').classList.toggle('hide',v!=='app')}
+
+async function init(){
+ if(SUPABASE_KEY.startsWith('PASTE')){view('login');toast('Add your publishable key in the code first');return}
+ const {data}=await sb.auth.getSession();
+ data.session?boot():view('login');
+}
+async function doLogin(e){
+ e.preventDefault();
+ const {error}=await sb.auth.signInWithPassword({email:$('l-email').value.trim(),password:$('l-pass').value});
+ if(error)return toast('Login failed: '+error.message);
+ $('l-pass').value='';boot();
+}
+async function logout(){authed=false;clearTimeout(idleT);clearInterval(timer);await sb.auth.signOut();view('login')}
+
+async function boot(){
+ const {data:u}=await sb.auth.getUser();me=u.user;
+ const {data:w}=await sb.rpc('whoami');ROLE=w&&w.role;
+ if(!['owner','admin'].includes(ROLE)){await sb.auth.signOut();view('login');return toast('This login is not allowed. It may have expired.')}
+ document.querySelectorAll('.owner-only').forEach(el=>el.classList.toggle('hide',ROLE!=='owner'));
+ $('who').textContent=w.email+(w.label?' · '+w.label:'')+(w.expires_at?' · access until '+new Date(w.expires_at).toLocaleDateString('en-ZA'):'');
+ view('app');authed=true;bump();if(ROLE==='owner')loadTeam();await load();
+ clearInterval(timer);timer=setInterval(load,20000);
+}
+async function load(){
+ let {data:ev,error}=await sb.from('events').select('*').order('created_at').limit(1);
+ if(error)return toast('Could not load: '+error.message);
+ if(!ev.length){const r=await sb.from('events').insert({name:'My Event'}).select().single();ev=[r.data]}
+ EV=ev[0];
+ if(document.activeElement.id.indexOf('ev-')!==0){$('ev-name').value=EV.name||'';$('ev-date').value=toInput(EV.event_date);$('ev-venue').value=EV.venue||'';$('ev-cap').value=EV.capacity||''}
+ const r=await sb.from('tickets').select('*').eq('event_id',EV.id).order('created_at',{ascending:false}).limit(2000);
+ if(r.error)return toast('Could not load tickets: '+r.error.message);
+ T=r.data;render();await loadTypes();loadHistory();loadOnline();
+}
+async function saveEvent(){
+ const {error}=await sb.from('events').update({name:$('ev-name').value.trim()||'My Event',event_date:$('ev-date').value,venue:$('ev-venue').value.trim(),capacity:parseInt($('ev-cap').value)||null}).eq('id',EV.id);
+ error?toast('Save failed: '+error.message):(toast('Event saved'),load());
+}
+
+/* ===== Online sales ===== */
+let OR=[],PAY={connected:false};
+const buyLink=()=>EV&&EV.public_slug?new URL('buy.html?e='+EV.public_slug,location.href).href:'';
+async function loadOnline(){
+ const [o,p]=await Promise.all([
+  sb.from('orders').select('*').eq('event_id',EV.id).order('created_at',{ascending:false}).limit(200),
+  sb.rpc('payment_status',{p_event:EV.id})]);
+ OR=o.data||[];PAY=(p.data&&!p.error)?p.data:{connected:false};
+ const f=document.activeElement;
+ if(!(f&&f.closest&&f.closest('#online'))){
+  $('on-slug').value=EV.public_slug||'';$('on-support').value=EV.support_contact||'';$('on-max').value=EV.max_per_order||6;
+  $('on-terms').value=EV.terms||'';$('on-on').checked=!!EV.online_enabled;
+ }
+ const st=$('on-status');
+ if(!PAY.connected){st.textContent='Not connected';st.style.cssText='background:#64748b33;color:#64748b'}
+ else if(PAY.mode==='test'){st.textContent='Connected: TEST mode';st.style.cssText='background:#f59e0b22;color:#f59e0b'}
+ else {st.textContent='Connected: LIVE';st.style.cssText='background:#10b98122;color:#10b981'}
+ $('on-link').textContent=buyLink()?'Buy link: '+buyLink():'Set a link name and save to get your buy link.';
+ renderOnline();
+}
+function renderOnline(){
+ const paid=OR.filter(o=>o.status==='paid'),pend=OR.filter(o=>o.status==='pending'&&new Date(o.expires_at)>new Date());
+ const box=(l,v)=>`<div class="card stat" style="margin:0"><span class="mute" style="font-size:12px">${l}</span><b>${v}</b></div>`;
+ $('on-stats').innerHTML=box('Online tickets',paid.reduce((a,o)=>a+o.quantity,0))+box('Online revenue',zar(paid.reduce((a,o)=>a+ +o.amount,0)))+box('Being paid now',pend.length)+box('Orders',OR.length);
+ const col={paid:'#10b981',pending:'#f59e0b',failed:'#f43f5e',expired:'#64748b'};
+ $('on-orders').innerHTML=OR.length?OR.slice(0,30).map(o=>{const stt=o.status==='pending'&&new Date(o.expires_at)<=new Date()?'expired':o.status;
+  return `<tr><td class="mute" style="white-space:nowrap">${new Date(o.created_at).toLocaleString('en-ZA',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+  <td><b>${esc(o.buyer_name)}</b><div class="mute" style="font-size:12px">${esc(o.buyer_contact)}</div></td>
+  <td>${o.quantity} x ${esc(o.type_name)}<div class="mute" style="font-size:12px">${zar(o.amount)}${o.mode==='test'?' · TEST':''}</div></td>
+  <td><span class="pill" style="background:${col[stt]}22;color:${col[stt]}">${stt.toUpperCase()}</span><div class="mute" style="font-size:11px">${esc(o.note||'')}</div></td></tr>`}).join(''):'<tr><td class="mute" style="text-align:center;padding:18px">No online orders yet.</td></tr>';
+}
+async function saveOnline(){
+ const slug=$('on-slug').value.trim().toLowerCase();
+ if($('on-on').checked){
+  if(!slug)return toast('Enter a link name before opening online sales');
+  if(!PAY.connected)return toast('Connect Yoco first');
+  if(!TY.some(t=>t.online&&t.active&&t.price>=2))return toast('Tick "Online" on at least one ticket price (R2 or more) and save it');
+ }
+ if(slug&&!/^[a-z0-9][a-z0-9-]{2,40}$/.test(slug))return toast('Link name: 3 to 41 letters, numbers or dashes');
+ const mx=Math.min(20,Math.max(1,parseInt($('on-max').value)||6));
+ const {error}=await sb.from('events').update({public_slug:slug||null,support_contact:$('on-support').value.trim()||null,max_per_order:mx,terms:$('on-terms').value.trim()||null,online_enabled:$('on-on').checked}).eq('id',EV.id);
+ if(error)return toast(/duplicate|unique/i.test(error.message)?'That link name is taken. Try another.':'Save failed: '+error.message);
+ toast('Online settings saved');load();
+}
+function copyBuyLink(){const l=buyLink();if(!l)return toast('Save a link name first');navigator.clipboard.writeText(l).then(()=>toast('Buy link copied'),()=>toast('Could not copy'))}
+async function yoco(body){
+ const {data:s}=await sb.auth.getSession();
+ const r=await fetch(SUPABASE_URL+'/functions/v1/yoco-settings',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+s.session.access_token},body:JSON.stringify({event_id:EV.id,...body})});
+ return {ok:r.ok,d:await r.json().catch(()=>({}))};
+}
+async function connectYoco(){
+ const k=$('on-key').value.trim();
+ if(!/^sk_(test|live)_/.test(k))return toast('Paste the secret key that starts with sk_test_ or sk_live_');
+ if(k.startsWith('sk_live_')&&!confirm('This is a LIVE key. Real cards will be charged. Continue?'))return;
+ try{
+  const {ok,d}=await yoco({action:'connect',secret_key:k});
+  if(!ok){const m={bad_key:'That does not look like a Yoco secret key.',invalid_key:'Yoco did not accept that key. Check you copied the secret key.',yoco_rejected:'Yoco refused the connection. Try again.',yoco_unreachable:'Could not reach Yoco. Try again.',forbidden:'This login is not allowed to do that.',unauthorized:'Please log in again.'};return toast(m[d.error]||'Could not connect ('+(d.error||'error')+')')}
+  $('on-key').value='';toast('Yoco connected in '+d.mode.toUpperCase()+' mode');loadOnline();
+ }catch(e){toast('Could not connect: '+e.message)}
+}
+async function disconnectYoco(){
+ if(!PAY.connected)return toast('Yoco is not connected');
+ if(!confirm('Disconnect Yoco and close online sales? Tickets already sold stay valid.'))return;
+ try{const {ok,d}=await yoco({action:'disconnect'});ok?(toast('Disconnected. Online sales closed.'),load()):toast('Could not disconnect ('+(d.error||'error')+')')}
+ catch(e){toast('Could not disconnect: '+e.message)}
+}
+function autoPrice(){const c=$('f-cat').value;$('f-price').value=PRICES[c];if(c==='Staff / Press')$('f-pay').value='free'}
+
+async function createTicket(e){
+ if(EV.capacity&&T.filter(t=>!t.voided_at).length>=EV.capacity&&!confirm('The event is at capacity ('+EV.capacity+'). Issue this ticket anyway?')){e.preventDefault();return}
+ e.preventDefault();
+ const {data,error}=await sb.from('tickets').insert({event_id:EV.id,name:$('f-name').value.trim(),contact:$('f-contact').value.trim(),
+  category:$('f-cat').value,price:parseFloat($('f-price').value)||0,pay_status:$('f-pay').value}).select().single();
+ if(error)return toast('Could not create: '+error.message);
+ $('f-name').value='';$('f-contact').value='';autoPrice();
+ await load();openTicket(data.id);
+}
+async function upd(id,patch,msg){const {error}=await sb.from('tickets').update(patch).eq('id',id);error?toast(error.message):(toast(msg),load())}
+const toggleIn=id=>{const t=T.find(x=>x.id===id);t.checked_in_at?upd(id,{checked_in_at:null,checked_in_by:null},'Check-in undone'):upd(id,{checked_in_at:new Date().toISOString(),checked_in_by:me.id},'Checked in')};
+const markPaid=id=>upd(id,{pay_status:'paid'},'Marked as paid');
+async function del(id){if(!confirm('Delete this ticket? This cannot be undone.'))return;const {error}=await sb.from('tickets').delete().eq('id',id);error?toast(error.message):(toast('Deleted'),load())}
+
+function render(){
+ const A=T.filter(t=>!t.voided_at),n=A.length,s=A.filter(t=>t.checked_in_at).length,rev=A.reduce((a,t)=>a+(t.pay_status==='paid'?+t.price:0),0);
+ const box=(l,v,c)=>`<div class="card stat" style="margin:0"><span class="mute" style="font-size:12px">${l}</span><b style="color:${c||'inherit'}">${v}</b></div>`;
+ $('stats').innerHTML=box('Tickets issued',EV.capacity?n+' / '+EV.capacity:n)+box('Checked in',s,'#10b981')+box('Still to arrive',n-s,'#f59e0b')+box('Money received',zar(rev));
+ const G=A.filter(t=>t.sold_at_gate),sum=m=>G.filter(t=>t.pay_method===m).reduce((a,t)=>a+ +t.price,0);
+ $('gate-stats').innerHTML=box('Gate tickets sold',G.length)+box('Cash to bank',zar(sum('cash')))+box('EFT received',zar(sum('eft')))+box('Gate total',zar(sum('cash')+sum('eft')));
+ const by={};G.forEach(t=>{const k=t.sold_by_email||'unknown';by[k]=by[k]||{n:0,c:0,e:0};by[k].n++;t.pay_method==='cash'?by[k].c+=+t.price:by[k].e+=+t.price});
+ $('gate-staff').innerHTML=Object.keys(by).length?Object.entries(by).map(([k,v])=>`${esc(k)}: ${v.n} sold, cash ${zar(v.c)}, EFT ${zar(v.e)}`).join('<br>'):'No gate sales yet.';
+ renderReport();renderGroup();
+ const q=$('search').value.toLowerCase();
+ const L=T.filter(t=>[t.name,t.code,t.category,t.contact].join(' ').toLowerCase().includes(q));
+ if(!L.length){$('rows').innerHTML=`<tr><td class="mute" style="text-align:center;padding:30px">${n?'No tickets match your search.':'No tickets yet. Create your first one.'}</td></tr>`;return}
+ $('rows').innerHTML=L.map(t=>{
+  const st=t.checked_in_at?'<span class="pill" style="background:#f43f5e22;color:#f43f5e">CHECKED IN</span>':'<span class="pill" style="background:#10b98122;color:#10b981">NOT YET</span>';
+  const gate=t.sold_at_gate?`<span class="pill" style="background:#8b5cf622;color:#8b5cf6">GATE ${esc((t.pay_method||'').toUpperCase())}</span>`:t.sold_online?'<span class="pill" style="background:#0ea5e922;color:#0ea5e9">ONLINE</span>':'';
+  const pay=t.pay_status==='unpaid'?'<span class="pill" style="background:#f59e0b22;color:#f59e0b">UNPAID</span>':t.pay_status==='free'?'<span class="pill" style="background:#0ea5e922;color:#0ea5e9">FREE</span>':'';
+  return `<tr><td><b>${esc(t.name)}</b><div class="mute" style="font-size:12px">${esc(t.contact)}</div></td>
+  <td><b style="font-family:monospace;color:var(--acc)">${esc(t.code)}</b><div class="mute" style="font-size:12px">${esc(t.category)} · ${zar(t.price)}</div></td>
+  <td>${t.voided_at?'<span class="pill" style="background:#64748b33;color:#64748b">VOID</span><div class="mute" style="font-size:11px">'+esc(t.voided_reason||'')+'</div>':st+' '+pay+' '+gate}</td>
+  <td style="text-align:right;white-space:nowrap"><button class="lnk" onclick="openTicket('${t.id}')">View</button>
+  <button class="lnk" style="color:var(--text)" onclick="histFor('${t.code}')">History</button>
+  <button class="lnk" style="color:var(--text)" onclick="toggleIn('${t.id}')">${t.checked_in_at?'Undo':'Check in'}</button>
+  ${t.pay_status==='unpaid'?`<button class="lnk" style="color:#f59e0b" onclick="markPaid('${t.id}')">Mark paid</button>`:''}
+  ${t.voided_at?`<button class="lnk" onclick="restoreTicket('${t.id}')">Restore</button>`:`<button class="lnk" style="color:#f59e0b" onclick="voidTicket('${t.id}')">Void</button>`}${ROLE==='owner'?`<button class="lnk" style="color:#f43f5e" onclick="del('${t.id}')">Delete</button>`:''}</td></tr>`}).join('');
+}
+function exportCSV(){
+ if(!T.length)return toast('No tickets to export yet');
+ const rows=[['Code','Name','Contact','Type','Price (ZAR)','Payment','Checked in at','Gate sale','Online sale','Paid by','Sold by','Voided','Void reason']];
+ T.forEach(t=>rows.push([t.code,t.name,t.contact||'',t.category,(+t.price).toFixed(2),t.pay_status,t.checked_in_at||'',t.sold_at_gate?'Yes':'No',t.sold_online?'Yes':'No',t.pay_method||'',t.sold_by_email||'',t.voided_at?'Yes':'No',t.voided_reason||'']));
+ const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='for-public-use-tickets.csv';a.click();
+}
+
+async function loadTypes(){
+ const {data,error}=await sb.from('ticket_types').select('*').eq('event_id',EV.id).order('created_at');
+ if(error)return toast('Could not load prices: '+error.message);
+ TY=data;const a=document.activeElement;
+ if(!(a&&a.closest&&a.closest('#types')))renderTypes();
+}
+function typeSold(t){return T.filter(x=>!x.voided_at&&(x.type_id===t.id||(!x.type_id&&x.category===t.name))).length}
+function typeLine(t){
+ const n=typeSold(t);
+ if(!t.capacity)return `<div class="mute" style="font-size:12px;margin:2px 0 0 4px">${n} sold, no limit</div>`;
+ return n>=t.capacity?`<div style="font-size:12px;margin:2px 0 0 4px;font-weight:700;color:#f43f5e">SOLD OUT: ${n} of ${t.capacity} sold</div>`
+  :`<div class="mute" style="font-size:12px;margin:2px 0 0 4px">${n} of ${t.capacity} sold, ${t.capacity-n} left</div>`;
+}
+function renderTypes(){
+ $('types').innerHTML=TY.length?TY.map(t=>`<div style="margin-bottom:10px"><div class="row" style="flex-wrap:nowrap">
+  <input id="tn-${t.id}" value="${esc(t.name)}"><input id="tp-${t.id}" type="number" min="0" step="0.01" value="${t.price}" style="width:110px"><input id="tc-${t.id}" type="number" min="1" step="1" value="${t.capacity||''}" placeholder="Limit" title="Most tickets of this type to sell. Leave blank for no limit." style="width:90px">
+  <label style="display:flex;align-items:center;gap:4px;margin:0;white-space:nowrap"><input type="checkbox" id="ta-${t.id}" ${t.active?'checked':''} style="width:auto"> On</label>
+  <label style="display:flex;align-items:center;gap:4px;margin:0;white-space:nowrap"><input type="checkbox" id="to-${t.id}" ${t.online?'checked':''} style="width:auto"> Online</label>
+  <button class="btn2" onclick="saveType('${t.id}')">Save</button></div>${typeLine(t)}</div>`).join(''):'<div class="mute">No ticket types yet. Add one below.</div>';
+}
+async function saveType(id){
+ const price=parseFloat($('tp-'+id).value)||0,online=$('to-'+id).checked;
+ const capRaw=$('tc-'+id).value.trim(),capacity=capRaw===''?null:parseInt(capRaw);
+ if(capacity!==null&&!(capacity>=1))return toast('Limit must be 1 or more, or blank for no limit');
+ if(online&&price<2)return toast('Online tickets must cost at least R2');
+ const {error}=await sb.from('ticket_types').update({name:$('tn-'+id).value.trim(),price,active:$('ta-'+id).checked,online,capacity}).eq('id',id);
+ error?toast(error.message):(toast('Price saved'),loadTypes());
+}
+async function addType(e){
+ e.preventDefault();
+ const {error}=await sb.from('ticket_types').insert({event_id:EV.id,name:$('nt-name').value.trim(),price:parseFloat($('nt-price').value)||0});
+ if(error)return toast(error.message);
+ $('nt-name').value='';$('nt-price').value='';toast('Ticket type added');loadTypes();
+}
+async function voidTicket(id){
+ const vt=T.find(x=>x.id===id);
+ if(vt&&vt.sold_online&&!confirm('This ticket was paid online. Voiding stops entry but does NOT refund the buyer. Refund them from the Yoco dashboard. Continue?'))return;
+ const r=prompt('Reason for voiding this ticket (required):');
+ if(!r||!r.trim())return;
+ upd(id,{voided_at:new Date().toISOString(),voided_reason:r.trim(),voided_by_email:me.email},'Ticket voided');
+}
+const restoreTicket=id=>confirm('Restore this ticket?')&&upd(id,{voided_at:null,voided_reason:null,voided_by_email:null},'Ticket restored');
+let RP='';
+function renderReport(){
+ if(!EV)return;
+ const A=T.filter(t=>!t.voided_at),V=T.filter(t=>t.voided_at),G=A.filter(t=>t.sold_at_gate),VG=V.filter(t=>t.sold_at_gate);
+ const sum=(L,m)=>L.filter(t=>t.pay_method===m).reduce((a,t)=>a+ +t.price,0);
+ const cash=sum(G,'cash'),eft=sum(G,'eft'),inn=A.filter(t=>t.checked_in_at).length;
+ const pre=A.filter(t=>!t.sold_at_gate&&!t.sold_online&&t.pay_status==='paid'),ON=A.filter(t=>t.sold_online),VON=V.filter(t=>t.sold_online);
+ const L=[EV.name+(EV.event_date?' ('+fmtDate(EV.event_date)+')':''),
+  'Tickets (excluding voided): '+A.length,'Checked in: '+inn,'Not arrived: '+(A.length-inn),
+  'Gate sales: '+G.length,'Expected cash from gate: '+zar(cash),'Expected EFT from gate: '+zar(eft),
+  'Online tickets: '+ON.length+' ('+zar(ON.reduce((a,t)=>a+ +t.price,0))+'), paid by card into the organiser Yoco account'+(VON.length?'; voided online tickets: '+VON.length+' (refund in Yoco if needed)':''),
+  'Admin-issued paid tickets: '+pre.length+' ('+zar(pre.reduce((a,t)=>a+ +t.price,0))+'), not part of gate cash',
+  'Voided tickets: '+V.length+'; voided gate sales: cash '+zar(sum(VG,'cash'))+', EFT '+zar(sum(VG,'eft'))+' (refund if money was taken)'];
+ const diff=(id,exp,label)=>{const v=$(id).value;if(v==='')return null;const d=parseFloat(v)-exp;return label+': '+(Math.abs(d)<0.005?'balanced':d>0?'over by '+zar(d):'short by '+zar(-d))};
+ const D=[diff('rp-cash',cash,'Cash'),diff('rp-eft',eft,'EFT')].filter(Boolean);
+ RP=[...L,...D].join('\n');
+ $('rp').innerHTML=L.map(esc).join('<br>');$('rp-diff').innerHTML=D.map(esc).join('<br>');
+}
+function copyReport(){navigator.clipboard.writeText(RP).then(()=>toast('Report copied'),()=>toast('Could not copy'))}
+async function loadTeam(){
+ const {data,error}=await sb.rpc('list_team');
+ const exp=m=>{if(!m.expires_at)return 'no expiry';const d=new Date(m.expires_at);return (d<new Date()?'EXPIRED ':'until ')+d.toLocaleDateString('en-ZA')};
+ $('team').innerHTML=error?'Could not load team: '+esc(error.message):(data||[]).map(m=>esc(m.email)+' <span class="pill" style="background:#0ea5e922;color:#0ea5e9">'+esc(m.role).toUpperCase()+'</span> '+esc(m.label||'')+' <span class="mute">('+exp(m)+')</span>').join('<br>');
+}
+let SH=[];
+async function loadHistory(){
+ const {data,error}=await sb.rpc('scan_history',{p_limit:200});
+ if(error){$('sh-rows').innerHTML='<tr><td class="mute">Could not load history: '+esc(error.message)+'</td></tr>';return}
+ SH=data||[];renderHistory();
+}
+const SR={admitted:['Admitted','#10b981'],gate_sale:['Gate sale','#8b5cf6'],already_used:['Already used','#f59e0b'],unpaid:['Unpaid, refused','#f59e0b'],voided:['Voided, refused','#64748b'],not_found:['Invalid code','#f43f5e']};
+function renderHistory(){
+ const q=$('sh-q').value.toLowerCase(),f=$('sh-f').value;
+ const L=SH.filter(r=>(f==='all'||(f==='ok'&&r.result==='admitted')||(f==='sale'&&r.result==='gate_sale')||(f==='no'&&!['admitted','gate_sale'].includes(r.result)))&&[r.name,r.code,r.scanned_by,r.input].join(' ').toLowerCase().includes(q));
+ $('sh-rows').innerHTML=L.length?L.map(r=>{const [lab,c]=SR[r.result]||[r.result,'#64748b'];
+  return `<tr><td style="white-space:nowrap" class="mute">${new Date(r.scanned_at).toLocaleString('en-ZA',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td>
+  <td><span class="pill" style="background:${c}22;color:${c}">${esc(lab)}</span></td>
+  <td>${r.name?`<b>${esc(r.name)}</b><div class="mute" style="font-size:12px;font-family:monospace">${esc(r.code)}</div>`:`<span class="mute" style="font-family:monospace">${esc((r.input||'').slice(0,30))}</span>`}</td>
+  <td class="mute" style="font-size:12px">${esc(r.scanned_by||'unknown')}</td></tr>`}).join(''):'<tr><td class="mute" style="text-align:center;padding:24px">No scans match.</td></tr>';
+}
+function histFor(code){$('sh-q').value=code;$('sh-f').value='all';renderHistory();$('sh-q').scrollIntoView({behavior:'smooth',block:'center'})}
+function clearHist(){$('sh-q').value='';$('sh-f').value='all';renderHistory()}
+function dl(name,rows){
+ const csv=rows.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();
+}
+async function clearScans(){
+ if(!confirm('Delete the entire scan history? Tickets and check-in status are not affected. A backup file downloads first.'))return;
+ const {data,error}=await sb.rpc('scan_history',{p_limit:1000});
+ if(error)return toast('Could not make a backup, nothing was deleted: '+error.message);
+ if(!(data||[]).length)return toast('The scan history is already empty');
+ if(data.length>=1000&&!confirm('There are 1000 or more scans, so the backup only holds the latest 1000. Continue anyway?'))return;
+ dl('scan-history-backup-'+new Date().toISOString().slice(0,10)+'.csv',[['Time','Result','Name','Code','Scanned text','Staff'],...data.map(r=>[r.scanned_at,r.result,r.name,r.code,r.input,r.scanned_by])]);
+ const word=prompt('Backup downloaded. Check that it opened. Type CLEAR to delete the scan history:');
+ if((word||'').trim().toUpperCase()!=='CLEAR')return toast('Not deleted: you need to type the word CLEAR and press OK.');
+ const res=await sb.rpc('clear_scan_history',{p_confirm:'CLEAR'});
+ if(res.error)return toast(res.error.message);
+ toast('Cleared '+res.data.scans+' scan records');loadHistory();
+}
+let BL=[];
+function csvSplit(l){const o=[];let c='',q=false;for(const ch of l){if(ch==='"')q=!q;else if((ch===','||ch==='\t'||ch===';')&&!q){o.push(c);c=''}else c+=ch}o.push(c);return o.map(x=>x.trim())}
+function bulkFile(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('b-text').value=r.result;bulkReview()};r.readAsText(f)}
+function bulkParse(){
+ const lines=$('b-text').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+ if(lines.length&&/^(names?|full name|guest|guests|attendee)$/i.test(csvSplit(lines[0])[0]))lines.shift();
+ return lines.map(l=>{const c=csvSplit(l);return {name:c[0],contact:c[1]||''}}).filter(r=>r.name);
+}
+function bulkGo(on){const g=$('b-go');g.disabled=!on;g.style.opacity=on?1:.5}
+function bulkReview(){
+ BL=bulkParse();const n=BL.length,out=$('b-out');
+ if(!n){out.textContent='No names found. Paste one name per line.';return bulkGo(false)}
+ if(n>300){out.textContent='That is '+n+' names. Please issue 300 or fewer at a time.';return bulkGo(false)}
+ const cat=$('b-cat').value.trim()||'Complimentary',price=parseFloat($('b-price').value)||0,pay=$('b-pay').value;
+ const seen={},dup=[];BL.forEach(r=>{const k=r.name.toLowerCase();if(seen[k]&&!dup.includes(r.name))dup.push(r.name);seen[k]=1});
+ const live=T.filter(t=>!t.voided_at).length,over=EV.capacity&&live+n>EV.capacity;
+ out.innerHTML='<b>'+n+' tickets</b> as <b>'+esc(cat)+'</b>, '+({free:'free',paid:'paid',unpaid:'not paid yet'}[pay])+', '+zar(price)+' each.<br>'+esc(BL.slice(0,5).map(r=>r.name).join(', '))+(n>5?' and '+(n-5)+' more':'')
+  +(dup.length?'<br><span style="color:#f59e0b">Repeated names: '+esc(dup.join(', '))+'. Check these are different people.</span>':'')
+  +(over?'<br><span style="color:#f59e0b">This goes over your capacity of '+EV.capacity+' ('+live+' already issued).</span>':'');
+ bulkGo(true);
+}
+async function bulkIssue(){
+ if(!BL.length)return;
+ const cat=$('b-cat').value.trim()||'Complimentary',price=parseFloat($('b-price').value)||0,pay=$('b-pay').value;
+ if(EV.capacity&&T.filter(t=>!t.voided_at).length+BL.length>EV.capacity&&!confirm('This goes over your capacity of '+EV.capacity+'. Issue anyway?'))return;
+ bulkGo(false);
+ const rows=BL.map(r=>({event_id:EV.id,name:r.name,contact:r.contact,category:cat,price,pay_status:pay}));
+ const {data,error}=await sb.from('tickets').insert(rows).select();
+ if(error){bulkGo(true);return toast('Could not issue: '+error.message)}
+ dl('tickets-'+cat.replace(/\W+/g,'-')+'.csv',[['Name','Contact','Type','Code'],...data.map(t=>[t.name,t.contact,t.category,t.code])]);
+ $('b-text').value='';$('b-file').value='';BL=[];
+ $('b-out').innerHTML='<b>'+data.length+' tickets issued.</b> A file with names and codes was downloaded. Find them in the ticket list by searching "'+esc(cat)+'".';
+ toast(data.length+' tickets issued');load();
+}
+async function clearTickets(){
+ if(!T.length)return toast('There are no tickets to clear');
+ if(!confirm('Delete ALL '+T.length+' tickets, including checked-in ones, gate sales and voided tickets? A backup file downloads first. This cannot be undone.'))return;
+ exportCSV();
+ const w=prompt('Backup downloaded. Check that it opened. Type DELETE to remove all '+T.length+' tickets:');
+ if((w||'').trim().toUpperCase()!=='DELETE')return toast('Not deleted: you need to type the word DELETE and press OK.');
+ const {error}=await sb.from('tickets').delete().eq('event_id',EV.id);
+ if(error)return toast('Could not clear: '+error.message);
+ await sb.from('orders').delete().eq('event_id',EV.id);
+ toast('All tickets cleared. Clear the scan history too if you are starting fresh.');load();
+}
+let GTXT='';
+function groups(){const m={};T.filter(t=>!t.voided_at).forEach(t=>{(m[t.category]=m[t.category]||[]).push(t)});return m}
+function renderGroup(){
+ const g=groups(),keys=Object.keys(g).sort(),sel=$('g-sel');
+ if(document.activeElement!==sel){const prev=sel.value;
+  sel.innerHTML=keys.map(k=>'<option value="'+esc(k)+'"'+(k===prev?' selected':'')+'>'+esc(k)+' ('+g[k].length+')</option>').join('')||'<option value="">No tickets yet</option>'}
+ const L=g[sel.value]||[],inn=L.filter(t=>t.checked_in_at),out=L.filter(t=>!t.checked_in_at);
+ const tm=t=>new Date(t.checked_in_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'});
+ GTXT=sel.value+': '+inn.length+' of '+L.length+' checked in\n\nNot arrived yet:\n'+(out.map(t=>'- '+t.name).join('\n')||'(everyone is in)')+'\n\nChecked in:\n'+(inn.map(t=>'- '+t.name+' ('+tm(t)+')').join('\n')||'(nobody yet)');
+ $('g-sum').innerHTML=L.length?'<b>'+inn.length+' of '+L.length+'</b> checked in. Not arrived: '+(out.length?esc(out.map(t=>t.name).join(', ')):'nobody, everyone is in'):'';
+}
+function copyGroup(){if(!GTXT)return;navigator.clipboard.writeText(GTXT).then(()=>toast('Status copied'),()=>toast('Could not copy'))}
+function ticketHTML(t){return `<div style="background:linear-gradient(135deg,#0f172a,#164e63);color:#fff;border:2px solid #22d3ee55;border-radius:24px;padding:24px;font-family:system-ui,sans-serif">
+<div style="font-size:11px;letter-spacing:.15em;color:#67e8f9">FOR PUBLIC USE</div>
+<div style="font-size:20px;font-weight:800">${esc(EV.name)}</div>
+<div style="color:#cbd5e1;font-size:13px;margin-bottom:14px">${esc([fmtDate(EV.event_date),EV.venue].filter(Boolean).join(' · '))}</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+<div><div style="color:#94a3b8;font-size:11px">Name</div><b>${esc(t.name)}</b></div>
+<div><div style="color:#94a3b8;font-size:11px">Type</div><b>${esc(t.category)}</b></div>
+<div><div style="color:#94a3b8;font-size:11px">Code</div><b style="font-family:monospace;color:#67e8f9">${esc(t.code)}</b></div>
+<div><div style="color:#94a3b8;font-size:11px">Payment</div><b>${{paid:'Paid',free:'Complimentary',unpaid:'Pending'}[t.pay_status]}</b></div></div>
+<div style="display:flex;justify-content:center;margin:18px 0 8px"><div class="qr" style="background:#fff;padding:12px;border-radius:12px"></div></div>
+<div style="text-align:center;font-size:11px;color:#94a3b8">Show this QR code at the entrance</div></div>`}
+async function groupZip(){
+ const cat=$('g-sel').value,L=groups()[cat]||[];
+ if(!L.length)return toast('No tickets in this group');
+ if(typeof JSZip==='undefined')return toast('The ZIP tool did not load. Check your connection and refresh.');
+ toast('Preparing '+L.length+' tickets, please wait...');
+ const zip=new JSZip(),rows=[['Name','Contact','Type','Code']];
+ const host=document.createElement('div');host.style.cssText='position:fixed;left:-9999px;top:0;width:380px';document.body.appendChild(host);
+ try{
+  for(const t of L){
+   host.innerHTML=ticketHTML(t);
+   new QRCode(host.querySelector('.qr'),{text:t.id,width:150,height:150,colorDark:'#020617',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});
+   await new Promise(r=>setTimeout(r,150));
+   const c=await html2canvas(host.firstElementChild,{backgroundColor:null,scale:2});
+   const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+   zip.file(t.name.replace(/[^\p{L}\p{N}\- ]+/gu,'').trim().replace(/\s+/g,'-')+'_'+t.code+'.png',blob);
+   rows.push([t.name,t.contact||'',t.category,t.code]);
+  }
+  zip.file('checklist.csv',rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n'));
+  const out=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(out);a.download=cat.replace(/\W+/g,'-')+'-tickets.zip';a.click();
+  toast('Ticket pack downloaded');
+ }catch(e){toast('Could not build the pack: '+e.message)}
+ finally{host.remove()}
+}
+async function downloadReport(){
+ const {data:sc}=await sb.rpc('scan_history',{p_limit:1000});
+ const A=T.filter(t=>!t.voided_at),V=T.filter(t=>t.voided_at),G=A.filter(t=>t.sold_at_gate),VG=V.filter(t=>t.sold_at_gate);
+ const sum=(L,m)=>L.filter(t=>t.pay_method===m).reduce((a,t)=>a+ +t.price,0);
+ const inn=A.filter(t=>t.checked_in_at).length,pre=A.filter(t=>!t.sold_at_gate&&!t.sold_online&&t.pay_status==='paid'),ON=A.filter(t=>t.sold_online),VON=V.filter(t=>t.sold_online);
+ const ft=d=>new Date(d).toLocaleString('en-ZA',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+ const tbl=(h,rows)=>'<table><thead><tr>'+h.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+ const kv=rows=>'<table>'+rows.map(r=>'<tr><td>'+esc(r[0])+'</td><td><b>'+esc(r[1])+'</b></td></tr>').join('')+'</table>';
+ const rec=(id,exp,l)=>{const v=$(id).value;if(v==='')return null;const d=parseFloat(v)-exp;return [l,zar(parseFloat(v))+' ('+(Math.abs(d)<.005?'balanced':d>0?'over by '+zar(d):'short by '+zar(-d))+')']};
+ const sum1=[['Tickets issued (excluding voided)',A.length],['Checked in',inn],['Not arrived',A.length-inn],['Capacity',EV.capacity||'No limit'],['Gate tickets sold',G.length],['Cash from gate sales',zar(sum(G,'cash'))],['EFT from gate sales',zar(sum(G,'eft'))],['Online tickets (card, paid to the organiser Yoco account)',ON.length+' ('+zar(ON.reduce((a,t)=>a+ +t.price,0))+')'+(VON.length?'; voided online: '+VON.length+' (refund in Yoco if needed)':'')],['Paid tickets issued by the admin',pre.length+' ('+zar(pre.reduce((a,t)=>a+ +t.price,0))+')'],['Voided tickets',V.length+(VG.length?' (voided gate sales: cash '+zar(sum(VG,'cash'))+', EFT '+zar(sum(VG,'eft'))+')':'')]];
+ [rec('rp-cash',sum(G,'cash'),'Cash counted'),rec('rp-eft',sum(G,'eft'),'EFT confirmed on bank statement')].filter(Boolean).forEach(r=>sum1.push(r));
+ const gr=groups(),by={};G.forEach(t=>{const k=t.sold_by_email||'unknown';by[k]=by[k]||{n:0,c:0,e:0};by[k].n++;t.pay_method==='cash'?by[k].c+=+t.price:by[k].e+=+t.price});
+ const AR={admitted:'Admitted',gate_sale:'Gate sale',already_used:'Already used',unpaid:'Unpaid, refused',voided:'Voided, refused',not_found:'Invalid code'};
+ const guests=[...T].sort((a,b)=>a.name.localeCompare(b.name)).map(t=>[t.name,t.contact||'',t.category,t.code,t.voided_at?'VOIDED: '+(t.voided_reason||''):t.checked_in_at?'Checked in '+ft(t.checked_in_at):'Not arrived',{paid:'Paid',free:'Free',unpaid:'Unpaid'}[t.pay_status]+(t.pay_method?' ('+t.pay_method.toUpperCase()+')':'')]);
+ const css='body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#0f172a}h1{margin:0}h2{margin-top:28px;border-bottom:2px solid #0e7490;padding-bottom:4px}table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left}th{background:#f1f5f9}.m{color:#64748b;font-size:12px}@media print{h2{break-after:avoid}tr{break-inside:avoid}}';
+ const html='<!doctype html><html><head><meta charset="utf-8"><title>'+esc(EV.name)+' report</title><style>'+css+'<\/style><\/head><body><h1>'+esc(EV.name)+'</h1><div class="m">'+esc([fmtDate(EV.event_date),EV.venue].filter(Boolean).join(' · '))+'<br>Report created '+esc(ft(new Date()))+'</div>'
+ +'<h2>Summary</h2>'+kv(sum1)
+ +'<h2>By ticket type</h2>'+tbl(['Type','Tickets','Checked in','Not arrived'],Object.keys(gr).sort().map(k=>[k,gr[k].length,gr[k].filter(t=>t.checked_in_at).length,gr[k].filter(t=>!t.checked_in_at).length]))
+ +(Object.keys(by).length?'<h2>Gate sales by staff login</h2>'+tbl(['Login','Sold','Cash','EFT'],Object.entries(by).map(([k,v])=>[k,v.n,zar(v.c),zar(v.e)])):'')
+ +'<h2>Guest list</h2>'+tbl(['Name','Contact','Type','Code','Status','Payment'],guests)
+ +'<h2>Scan history'+((sc||[]).length>=1000?' (latest 1000)':'')+'</h2>'+tbl(['Time','Result','Name','Code','Scanned by'],(sc||[]).map(r=>[ft(r.scanned_at),AR[r.result]||r.result,r.name||'',r.code||r.input||'',r.scanned_by||'']))
+ +'<p class="m">This report contains personal information about guests. Store and share it responsibly and delete it when it is no longer needed.</p><\/body><\/html>';
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));a.download='report-'+EV.name.replace(/\W+/g,'-')+'.html';a.click();
+ toast('Report downloaded. Open it in a browser and print to PDF if needed.');
+}
+function openTicket(id){
+ const t=T.find(x=>x.id===id);if(!t)return;cur=t;
+ $('tk-event').textContent=EV.name;$('tk-when').textContent=[fmtDate(EV.event_date),EV.venue].filter(Boolean).join(' · ');
+ $('tk-name').textContent=t.name;$('tk-cat').textContent=t.category;$('tk-code').textContent=t.code;
+ $('tk-pay').textContent={paid:'Paid',free:'Complimentary',unpaid:'Pending'}[t.pay_status];
+ $('tk-qr').innerHTML='';
+ new QRCode($('tk-qr'),{text:t.id,width:150,height:150,colorDark:'#020617',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});
+ $('modal').classList.remove('hide');
+ prepShare($('ticket'),'Ticket_'+t.code+'.png');
+}
+function downloadTicket(){
+ html2canvas($('ticket'),{backgroundColor:null,scale:2}).then(c=>{const a=document.createElement('a');a.download='Ticket_'+cur.code+'.png';a.href=c.toDataURL('image/png');a.click()});
+}
+let shareFile=null,shareTok=0;
+function prepShare(el,name){
+ shareFile=null;const my=++shareTok;
+ setTimeout(()=>html2canvas(el,{backgroundColor:null,scale:2}).then(c=>c.toBlob(b=>{if(b&&my===shareTok)shareFile=new File([b],name,{type:'image/png'})},'image/png')).catch(()=>{}),500);
+}
+async function shareWA(){
+ const txt=`Your ticket for ${EV.name}\n${[fmtDate(EV.event_date),EV.venue].filter(Boolean).join(' | ')}\nName: ${cur.name}\nTicket code: ${cur.code}\nShow the QR code at the gate.`;
+ if(shareFile&&navigator.canShare&&navigator.canShare({files:[shareFile]})){
+  try{await navigator.share({files:[shareFile],text:txt});return}catch(e){if(e.name==='AbortError')return}
+ }
+ downloadTicket();toast('Image saved. Attach it in the WhatsApp chat.');
+ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+}
+autoPrice();init();
+</script>
+<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));</script>
+</body>
+</html>

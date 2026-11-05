@@ -1,0 +1,31 @@
+{
+ "name": "For Public Use Admin",
+ "short_name": "FPU Admin",
+ "id": "/admin",
+ "start_url": "/",
+ "scope": "/",
+ "display": "standalone",
+ "orientation": "portrait",
+ "background_color": "#020617",
+ "theme_color": "#111d5c",
+ "icons": [
+  {
+   "src": "/icon-admin-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icon-admin-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icon-admin-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

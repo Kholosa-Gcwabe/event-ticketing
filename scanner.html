@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>For Public Use - Gate Scanner</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--bg:#f1f5f9;--card:#fff;--line:#e2e8f0;--text:#0f172a;--mute:#64748b;--inp:#f8fafc}
+@media (prefers-color-scheme:dark){:root{--bg:#020617;--card:#0f172a;--line:#1e293b;--text:#f1f5f9;--mute:#94a3b8;--inp:#020617}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.wrap{max-width:480px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+input{width:100%;background:var(--inp);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px;color:var(--text)}
+label{display:block;font-size:12px;font-weight:600;color:var(--mute);margin:10px 0 4px}
+button{cursor:pointer;border:0;font:inherit}
+.btn{background:#0891b2;color:#fff;font-weight:700;border-radius:12px;padding:12px 18px}
+.btn2{background:var(--inp);border:1px solid var(--line);color:var(--text);font-weight:600;border-radius:12px;padding:8px 14px;font-size:13px}
+.mute{color:var(--mute)}.hide{display:none!important}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+#qr-reader video{border-radius:12px;width:100%!important}
+#res{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;text-align:center}
+#res .box{max-width:360px;width:100%;color:#fff}
+#res .icon{font-size:84px;line-height:1}
+#res h1{margin:10px 0 4px;font-size:30px;font-weight:900}
+#res .info{background:rgba(0,0,0,.25);border-radius:14px;padding:12px;margin:16px 0;text-align:left;font-size:14px}
+#res button{width:100%;background:#fff;color:#0f172a;font-weight:800;border-radius:14px;padding:14px;font-size:16px}
+.sel{background:#0891b2!important;color:#fff!important;border-color:#0891b2!important}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="manifest" href="/manifest-scanner.json">
+<meta name="theme-color" content="#0e74aa">
+<link rel="apple-touch-icon" href="/apple-touch-scanner.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FPU Gate">
+</head>
+<body>
+<div id="login" class="wrap hide" style="margin-top:8vh">
+ <div class="card">
+  <h2 style="margin:0">🎟️ For Public Use</h2>
+  <p class="mute" style="margin:4px 0 0">Gate scanner login</p>
+  <form onsubmit="doLogin(event)">
+   <label>Email</label><input id="l-email" type="email" required autocomplete="username">
+   <label>Password</label><input id="l-pass" type="password" required autocomplete="current-password">
+   <button class="btn" style="width:100%;margin-top:16px">Log in</button>
+  </form>
+  <p id="l-msg" class="hide" style="color:#f59e0b;font-size:13px"></p>
+ </div>
+</div>
+
+<div id="app" class="wrap hide">
+ <div class="row" style="margin-bottom:12px">
+  <div><b>🎟️ Gate Scanner</b><div id="who" class="mute" style="font-size:11px"></div></div>
+  <div><span class="mute" style="font-size:13px">Admitted: <b id="count">0</b></span> <button class="btn2" onclick="logout()">Log out</button></div>
+ </div>
+ <div class="row" style="margin-bottom:12px">
+  <button id="tb-scan" class="btn2 sel" style="flex:1;padding:12px" onclick="tab('scan')">Scan tickets</button>
+  <button id="tb-sell" class="btn2" style="flex:1;padding:12px" onclick="tab('sell')">Sell at gate</button>
+ </div>
+ <div id="pane-scan">
+ <div class="card">
+  <div id="qr-reader"></div>
+  <p id="cam-msg" class="hide" style="color:#f59e0b;font-size:13px"></p>
+  <button id="cam-btn" class="btn hide" style="width:100%;margin-top:10px" onclick="startCam()">Start camera</button>
+  <button class="btn2" style="width:100%;margin-top:10px;padding:12px" onclick="$('photo').click()">📷 Take a photo of the QR code instead</button>
+  <input id="photo" type="file" accept="image/*" capture="environment" class="hide" onchange="scanPhoto(this)">
+ </div>
+ <div class="card">
+  <label style="margin-top:0">Camera not working? Type the ticket code</label>
+  <form onsubmit="manualCheck(event)" class="row">
+   <input id="manual" placeholder="e.g. FPU-7K2M9X" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;font-family:monospace">
+   <button class="btn">Check</button>
+  </form>
+ </div>
+ </div>
+ <div id="pane-sell" class="hide">
+  <div class="card">
+   <b>Sell a ticket</b>
+   <label>Ticket type</label><div id="s-types"></div>
+   <label>Guest name (optional)</label><input id="s-name" placeholder="Guest name">
+   <label>Guest WhatsApp number (optional)</label><input id="s-phone" type="tel" placeholder="082 123 4567">
+   <label>Paid by</label>
+   <div class="row"><button id="m-cash" class="btn2" style="flex:1;padding:12px" onclick="setMethod('cash')">💵 Cash</button><button id="m-eft" class="btn2" style="flex:1;padding:12px" onclick="setMethod('eft')">🏦 EFT</button></div>
+   <button class="btn" style="width:100%;margin-top:14px" onclick="sellStart()">Review sale</button>
+   <p id="s-msg" class="hide" style="color:#f59e0b;font-size:13px"></p>
+  </div>
+ </div>
+</div>
+
+<div id="conf" class="hide" style="position:fixed;inset:0;background:rgba(2,6,23,.85);display:flex;align-items:center;justify-content:center;padding:20px;z-index:40">
+ <div class="card" style="max-width:340px;width:100%;text-align:center;margin:0">
+  <div class="mute">Collect from guest</div><div id="c-amt" style="font-size:40px;font-weight:900"></div><div id="c-desc" class="mute" style="margin-bottom:16px"></div>
+  <button class="btn" style="width:100%" onclick="sellConfirm()">I have collected it. Record sale</button>
+  <button class="btn2" style="width:100%;margin-top:8px;padding:12px" onclick="$('conf').classList.add('hide')">Cancel</button>
+ </div>
+</div>
+
+<div id="rcpt" class="hide" style="position:fixed;inset:0;background:rgba(2,6,23,.92);z-index:55;overflow:auto;padding:16px">
+ <div style="max-width:380px;margin:0 auto">
+  <div id="rc-card" style="background:linear-gradient(135deg,#0f172a,#164e63);color:#fff;border:2px solid #22d3ee55;border-radius:24px;padding:22px">
+   <div style="font-size:11px;letter-spacing:.12em;color:#67e8f9">FOR PUBLIC USE · PROOF OF PURCHASE</div>
+   <div id="rc-event" style="font-size:20px;font-weight:800;margin-top:4px"></div>
+   <div id="rc-when" style="color:#cbd5e1;font-size:13px;margin-bottom:14px"></div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+    <div><div style="color:#94a3b8;font-size:11px">Name</div><b id="rc-name"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Ticket</div><b id="rc-cat"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Amount paid</div><b id="rc-amt"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Paid by</div><b id="rc-method"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Receipt no.</div><b id="rc-code" style="font-family:monospace;color:#67e8f9"></b></div>
+    <div><div style="color:#94a3b8;font-size:11px">Purchased</div><b id="rc-time"></b></div>
+   </div>
+   <div style="display:flex;justify-content:center;margin:16px 0 8px"><div id="rc-qr" style="background:#fff;padding:10px;border-radius:12px"></div></div>
+   <div style="text-align:center;font-size:11px;color:#94a3b8">Entry recorded at the gate. Keep this as your proof of purchase.</div>
+  </div>
+  <button class="btn" style="width:100%;margin-top:12px" onclick="shareReceipt()">Send on WhatsApp</button>
+  <button class="btn2" style="width:100%;margin-top:8px;padding:12px" onclick="saveReceipt()">Save as image</button>
+  <button class="btn2" style="width:100%;margin-top:8px;padding:12px" onclick="$('rcpt').classList.add('hide')">Done</button>
+ </div>
+</div>
+
+<div id="res" class="hide"><div class="box">
+ <div class="icon" id="r-icon"></div><h1 id="r-title"></h1><div id="r-sub"></div>
+ <div class="info" id="r-info"></div>
+ <button onclick="closeRes()">Next</button>
+</div></div>
+
+<script>
+/* ====== SAME URL AND PUBLISHABLE KEY AS admin.html ====== */
+const CFG=window.FPU_CONFIG||{};
+const SUPABASE_URL=CFG.SUPABASE_URL||'https://nchnjiwntronxgwrvjuz.supabase.co';
+const SUPABASE_KEY=(CFG.SUPABASE_KEY&&!CFG.SUPABASE_KEY.startsWith('PASTE'))?CFG.SUPABASE_KEY:'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
+/* ========================================================= */
+try{Object.keys(localStorage).filter(k=>k.startsWith('sb-')).forEach(k=>localStorage.removeItem(k))}catch(e){}
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storage:window.sessionStorage}});
+const IDLE_MIN=30;let authed=false,idleT=null;
+function bump(){if(!authed)return;clearTimeout(idleT);idleT=setTimeout(async()=>{await logout();msg('Signed out after '+IDLE_MIN+' minutes of inactivity')},IDLE_MIN*60000)}
+['click','keydown','touchstart','pointerdown','scroll'].forEach(e=>addEventListener(e,bump,{passive:true}));
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const zar=n=>new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(n||0);
+let TYPES=[],selType=null,method=null,selling=false;
+let qr=null,busy=false,admitted=0,autoT=null;
+
+function view(v){$('login').classList.toggle('hide',v!=='login');$('app').classList.toggle('hide',v!=='app')}
+async function init(){
+ if(SUPABASE_KEY.startsWith('PASTE')){view('login');return msg('Add your publishable key in the code first')}
+ const {data}=await sb.auth.getSession();
+ data.session?boot():view('login');
+}
+function msg(t){const m=$('l-msg');m.textContent=t;m.classList.remove('hide')}
+async function doLogin(e){
+ e.preventDefault();
+ const {error}=await sb.auth.signInWithPassword({email:$('l-email').value.trim(),password:$('l-pass').value});
+ if(error)return msg('Login failed: '+error.message);
+ $('l-pass').value='';boot();
+}
+async function boot(){
+ const {data:u}=await sb.auth.getUser();
+ const {data:w}=await sb.rpc('whoami');
+ if(!w||!['staff','admin','owner'].includes(w.role)){await sb.auth.signOut();view('login');return msg('This login is not allowed. It may have expired.')}
+ view('app');$('who').textContent=u.user.email+(w.label?' · '+w.label:'')+(w.expires_at?' · until '+new Date(w.expires_at).toLocaleDateString('en-ZA'):'');authed=true;bump();startCam();loadTypes();
+}
+async function logout(){authed=false;clearTimeout(idleT);await stopCam();await sb.auth.signOut();view('login')}
+
+const isoOk=v=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v||'');
+const fmtDate=v=>isoOk(v)?new Date(v).toLocaleString('en-ZA',{weekday:'short',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):(v||'');
+let lastR=null,lastPhone='';
+function showReceipt(d,phone){
+ lastR=d;lastPhone=phone||'';
+ $('rc-event').textContent=d.event||'Event';
+ $('rc-when').textContent=[fmtDate(d.event_date),d.venue].filter(Boolean).join(' · ');
+ $('rc-name').textContent=d.name;$('rc-cat').textContent=d.category;$('rc-amt').textContent=zar(d.price);
+ $('rc-method').textContent=d.method==='cash'?'Cash':'EFT';$('rc-code').textContent=d.code;
+ $('rc-time').textContent=new Date(d.time).toLocaleString('en-ZA',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+ $('rc-qr').innerHTML='';
+ new QRCode($('rc-qr'),{text:d.code,width:120,height:120,colorDark:'#020617',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});
+ $('rcpt').classList.remove('hide');
+ prepShare($('rc-card'),'Receipt_'+d.code+'.png');
+}
+let shareFile=null,shareTok=0;
+function prepShare(el,name){
+ shareFile=null;const my=++shareTok;
+ setTimeout(()=>html2canvas(el,{backgroundColor:null,scale:2}).then(c=>c.toBlob(b=>{if(b&&my===shareTok)shareFile=new File([b],name,{type:'image/png'})},'image/png')).catch(()=>{}),500);
+}
+async function shareReceipt(){
+ const d=lastR;if(!d)return;
+ const txt=`Proof of purchase\n${d.event||'Event'}\n${[fmtDate(d.event_date),d.venue].filter(Boolean).join(' | ')}\nName: ${d.name}\nTicket: ${d.category}\nAmount paid: ${zar(d.price)} (${d.method==='cash'?'cash':'EFT'})\nReceipt no: ${d.code}\nEntry recorded at the gate.`;
+ if(shareFile&&navigator.canShare&&navigator.canShare({files:[shareFile]})){
+  try{await navigator.share({files:[shareFile],text:txt});return}catch(e){if(e.name==='AbortError')return}
+ }
+ saveReceipt();
+ let n=lastPhone.replace(/\D/g,'');
+ if(n.startsWith('0'))n='27'+n.slice(1);else if(n.length===9)n='27'+n;
+ window.open('https://wa.me/'+(n.length>=11?n:'')+'?text='+encodeURIComponent(txt),'_blank');
+}
+function saveReceipt(){
+ if(!lastR)return;
+ html2canvas($('rc-card'),{backgroundColor:null,scale:2}).then(c=>{const a=document.createElement('a');a.download='Receipt_'+lastR.code+'.png';a.href=c.toDataURL('image/png');a.click()});
+}
+function tab(t){
+ $('pane-scan').classList.toggle('hide',t!=='scan');$('pane-sell').classList.toggle('hide',t!=='sell');
+ $('tb-scan').classList.toggle('sel',t==='scan');$('tb-sell').classList.toggle('sel',t==='sell');
+ if(t==='scan')startCam();else{stopCam();loadTypes()}
+}
+async function loadTypes(){
+ const {data,error}=await sb.from('ticket_types').select('id,name,price').eq('active',true).order('created_at');
+ TYPES=error?[]:data;renderTypes();
+}
+function renderTypes(){
+ $('s-types').innerHTML=TYPES.length?TYPES.map(t=>`<button class="btn2 ${t.id===selType?'sel':''}" style="width:100%;margin-bottom:8px;text-align:left;padding:12px" onclick="pickType('${t.id}')">${esc(t.name)} <b style="float:right">${zar(t.price)}</b></button>`).join(''):'<div class="mute">No ticket prices set up yet. Ask the admin.</div>';
+}
+function pickType(id){selType=id;renderTypes()}
+function setMethod(m){method=m;$('m-cash').classList.toggle('sel',m==='cash');$('m-eft').classList.toggle('sel',m==='eft')}
+function sm(t){const e=$('s-msg');e.textContent=t;e.classList.remove('hide')}
+function sellStart(){
+ $('s-msg').classList.add('hide');
+ const t=TYPES.find(x=>x.id===selType);
+ if(!t)return sm('Choose a ticket type first');
+ if(!method)return sm('Choose cash or EFT');
+ $('c-amt').textContent=zar(t.price);$('c-desc').textContent=t.name+' · '+(method==='cash'?'Cash':'EFT');
+ $('conf').classList.remove('hide');
+}
+async function sellConfirm(){
+ if(selling)return;selling=true;bump();
+ $('conf').classList.add('hide');
+ const t=TYPES.find(x=>x.id===selType);
+ try{
+  const {data,error}=await sb.rpc('gate_sale',{p_type_id:selType,p_name:$('s-name').value,p_method:method});
+  if(error){
+   const off=!navigator.onLine||/fetch|network/i.test(error.message);
+   show('📡',off?'No connection':'Sale not recorded',off?'Nothing was recorded. Reconnect and try again.':error.message,'#475569','');
+  }else{
+   showReceipt(data,$('s-phone').value);
+   selType=null;setMethod(null);$('s-name').value='';$('s-phone').value='';renderTypes();
+  }
+ }finally{selling=false}
+}
+async function startCam(){
+ $('cam-msg').classList.add('hide');$('cam-btn').classList.add('hide');
+ if(typeof Html5Qrcode==='undefined')return camErr('Scanner failed to load. Check your connection, or type the code below.');
+ if(!qr)qr=new Html5Qrcode('qr-reader');
+ if(qr.isScanning)return;
+ const cfg={fps:10,qrbox:{width:240,height:240}};
+ const ok=txt=>{if(busy)return;busy=true;check(txt.trim())};
+ try{
+  await qr.start({facingMode:'environment'},cfg,ok,()=>{});
+ }catch(e1){
+  try{
+   const cams=await Html5Qrcode.getCameras();
+   if(!cams.length)throw new Error('No camera found on this device');
+   await qr.start(cams[cams.length-1].id,cfg,ok,()=>{});
+  }catch(e2){
+   camErr('Camera problem: '+String((e2&&e2.message)||e2)+'. Allow camera access for this site (padlock icon by the address), close other apps using the camera, then tap Start camera. You can still type codes below.');
+  }
+ }
+}
+async function scanPhoto(inp){
+ const f=inp.files[0];inp.value='';if(!f||busy)return;
+ try{
+  await stopCam();
+  if(!qr)qr=new Html5Qrcode('qr-reader');
+  const txt=await qr.scanFile(f,false);
+  busy=true;check(txt.trim());
+ }catch(e){show('📷','Could not read the QR','Move closer, hold steady, use good light and try again. Or type the code.','#475569','')}
+}
+function camErr(t){$('cam-msg').textContent=t;$('cam-msg').classList.remove('hide');$('cam-btn').classList.remove('hide')}
+async function stopCam(){if(qr&&qr.isScanning){try{await qr.stop()}catch(e){}}}
+function manualCheck(e){e.preventDefault();const v=$('manual').value.trim();if(v&&!busy){busy=true;check(v);$('manual').value=''}}
+
+async function check(input){
+ bump();
+ const {data,error}=await sb.rpc('check_in',{p_input:input});
+ if(error){
+  const offline=!navigator.onLine||/fetch|network/i.test(error.message);
+  return show('📡',offline?'No connection':'Could not check',offline?'Not admitted. Reconnect and scan again.':error.message,'#475569','');
+ }
+ const r=data.result;
+ if(r==='admitted'){
+  admitted++;$('count').textContent=admitted;
+  show('✅','Welcome in!','Valid ticket','#059669',`<b>${esc(data.name)}</b><br>${esc(data.category)}<br><span style="font-family:monospace">${esc(data.code)}</span>`,true);
+ }else if(r==='already_used'){
+  show('⚠️','Already used','Do not admit','#d97706',`<b>${esc(data.name)}</b><br><span style="font-family:monospace">${esc(data.code)}</span><br>Checked in: ${new Date(data.checked_in_at).toLocaleString('en-ZA')}`);
+ }else if(r==='voided'){
+  show('🚫','Ticket cancelled','This ticket was voided. Do not admit.','#dc2626',`<b>${esc(data.name)}</b><br><span style="font-family:monospace">${esc(data.code)}</span>`);
+ }else if(r==='unpaid'){
+  show('💳','Payment pending','Collect payment first, then admin can mark it paid','#d97706',`<b>${esc(data.name)}</b><br><span style="font-family:monospace">${esc(data.code)}</span>`);
+ }else{
+  show('❌','Not a valid ticket','This code is not in the system','#dc2626',`Scanned: <span style="font-family:monospace">${esc(input.slice(0,40))}</span>`);
+ }
+}
+function show(icon,title,sub,color,info,auto){
+ if(navigator.vibrate)navigator.vibrate(auto?80:[120,60,120]);
+ $('r-icon').textContent=icon;$('r-title').textContent=title;$('r-sub').textContent=sub;
+ $('r-info').innerHTML=info;$('r-info').classList.toggle('hide',!info);
+ $('res').style.background=color;$('res').classList.remove('hide');
+ clearTimeout(autoT);if(auto)autoT=setTimeout(closeRes,2200);
+}
+function closeRes(){clearTimeout(autoT);$('res').classList.add('hide');setTimeout(()=>busy=false,400)}
+init();
+</script>
+<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));</script>
+</body>
+</html>

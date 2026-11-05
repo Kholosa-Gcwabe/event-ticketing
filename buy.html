@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buy tickets - For Public Use</title>
+<meta name="theme-color" content="#111d5c">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<style>
+:root{color-scheme:light dark;--bg:#f1f5f9;--card:#fff;--line:#e2e8f0;--text:#0f172a;--mute:#64748b;--acc:#0e7490;--inp:#f8fafc}
+@media (prefers-color-scheme:dark){:root{--bg:#020617;--card:#0f172a;--line:#1e293b;--text:#f1f5f9;--mute:#94a3b8;--acc:#22d3ee;--inp:#020617}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.wrap{max-width:480px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+h1{font-size:22px;margin:2px 0 4px}
+.brand{font-size:11px;letter-spacing:.15em;color:var(--acc);font-weight:700}
+.mute{color:var(--mute)}.hide{display:none!important}
+label{display:block;font-size:12px;font-weight:600;color:var(--mute);margin:12px 0 4px}
+input,select{font:inherit;width:100%;background:var(--inp);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--text)}
+input[type=checkbox]{width:auto}
+button{cursor:pointer;border:0;font:inherit}
+.btn{background:#0891b2;color:#fff;font-weight:700;border-radius:12px;padding:14px 16px;width:100%;margin-top:16px;font-size:16px}
+.btn:disabled{opacity:.55;cursor:default}
+.opts{display:grid;gap:8px}
+.opt{display:flex;justify-content:space-between;align-items:center;border:2px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;background:var(--inp)}
+.opt.sel{border-color:#0891b2}
+.opt input{display:none}
+.qty{display:flex;align-items:center;gap:14px}
+.qty button{width:44px;height:44px;border-radius:12px;background:var(--inp);border:1px solid var(--line);color:var(--text);font-size:20px;font-weight:700}
+.qty b{font-size:20px;min-width:28px;text-align:center}
+.note{border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.warn{background:#f59e0b22;color:#b45309}.bad{background:#f43f5e22;color:#e11d48}
+@media (prefers-color-scheme:dark){.warn{color:#fbbf24}.bad{color:#fb7185}}
+.total{display:flex;justify-content:space-between;font-size:18px;font-weight:800;margin-top:16px}
+.terms{font-size:12px;color:var(--mute);white-space:pre-wrap;max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="brand">FOR PUBLIC USE</div>
+ <div id="banner"></div>
+ <div id="msg"></div>
+ <div id="loading" class="mute" style="padding:30px 0">Loading...</div>
+
+ <div id="closed" class="card hide">
+  <h1 id="c-title">Tickets are not on sale here</h1>
+  <p class="mute" id="c-text" style="margin:6px 0 0"></p>
+ </div>
+
+ <div id="shop" class="hide">
+  <div class="card">
+   <h1 id="ev-name"></h1>
+   <div class="mute" id="ev-when"></div>
+   <div class="mute" id="ev-venue"></div>
+   <div id="ev-left" style="margin-top:6px;font-size:13px;font-weight:600;color:#f59e0b"></div>
+  </div>
+  <form class="card" onsubmit="pay(event)" autocomplete="on">
+   <b>1. Choose your ticket</b>
+   <div class="opts" id="types" style="margin-top:8px"></div>
+   <label>How many?</label>
+   <div class="qty"><button type="button" onclick="chg(-1)" aria-label="Fewer">-</button><b id="q">1</b><button type="button" onclick="chg(1)" aria-label="More">+</button></div>
+   <b style="display:block;margin-top:18px">2. Your details</b>
+   <label for="name">Full name</label><input id="name" required maxlength="80" autocomplete="name">
+   <label for="contact">Cell number or email (for support)</label><input id="contact" required maxlength="120" autocomplete="email">
+   <div id="terms-box" class="hide"><label>Event terms</label><div class="terms" id="terms"></div></div>
+   <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;color:var(--text);font-size:13px"><input type="checkbox" id="agree" required style="margin-top:3px"><span id="agree-t">I agree to the event terms and understand my details are used only to issue my tickets and for support.</span></label>
+   <div class="total"><span>Total</span><span id="total"></span></div>
+   <button class="btn" id="go">Pay securely with Yoco</button>
+   <p class="mute" style="font-size:12px;text-align:center;margin:10px 0 0">You will be sent to Yoco to pay by card. Your tickets appear on the next page as soon as the payment goes through. Places are held for 20 minutes while you pay.</p>
+  </form>
+  <p class="mute" id="support" style="font-size:13px;text-align:center"></p>
+ </div>
+</div>
+<script>
+const CFG=window.FPU_CONFIG||{};
+const SUPABASE_URL=CFG.SUPABASE_URL||'https://nchnjiwntronxgwrvjuz.supabase.co';
+const SUPABASE_KEY=CFG.SUPABASE_KEY||'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const zar=n=>new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(n||0);
+const slug=(new URLSearchParams(location.search).get('e')||'').trim().toLowerCase();
+const qs=new URLSearchParams(location.search);
+let EV=null,sel=null,qty=1,busy=false;
+const sb=SUPABASE_KEY.startsWith('PASTE')?null:supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false}});
+
+function note(t,c){$('msg').innerHTML=t?`<div class="note ${c}">${esc(t)}</div>`:''}
+function closed(title,text){$('loading').classList.add('hide');$('shop').classList.add('hide');$('closed').classList.remove('hide');$('c-title').textContent=title;$('c-text').textContent=text||''}
+const maxQty=()=>{let m=EV.max_per_order||10;if(EV.remaining!=null)m=Math.min(m,EV.remaining);const t=EV.types.find(x=>x.id===sel);if(t&&t.left!=null)m=Math.min(m,t.left);return Math.max(m,1)};
+function total(){const t=EV.types.find(x=>x.id===sel);$('total').textContent=t?zar(t.price*qty):''}
+const avail=()=>EV.types.filter(t=>!t.sold_out);
+function drawTypes(){
+ $('types').innerHTML=EV.types.map(t=>{
+  const left=t.left!=null&&t.left<=20&&!t.sold_out?`<div style="font-size:12px;font-weight:600;color:#f59e0b">Only ${t.left} left</div>`:'';
+  return t.sold_out
+   ?`<div class="opt" style="margin:0;opacity:.55;cursor:default"><span><b>${esc(t.name)}</b></span><b style="color:#f43f5e">SOLD OUT</b></div>`
+   :`<label class="opt ${t.id===sel?'sel':''}" style="margin:0"><input type="radio" name="tt" value="${esc(t.id)}" ${t.id===sel?'checked':''} onchange="pick('${esc(t.id)}')"><span><b>${esc(t.name)}</b>${left}</span><b>${zar(t.price)}</b></label>`}).join('');
+}
+function pick(id){sel=id;qty=Math.min(qty,maxQty());$('q').textContent=qty;drawTypes();total()}
+function chg(d){qty=Math.min(maxQty(),Math.max(1,qty+d));$('q').textContent=qty;total()}
+
+let first=true;
+async function init(){
+ const wasFirst=first;first=false;
+ if(!sb){return closed('Not set up yet','The site owner still needs to add the publishable key in config.js.')}
+ if(!slug)return closed('Link not complete','Please use the ticket link you were given.');
+ if(wasFirst&&qs.get('cancelled'))note('Payment cancelled. You have not been charged. You can try again below.','warn');
+ if(wasFirst&&qs.get('failed'))note('The payment did not go through. You have not been charged. Please try again.','bad');
+ const {data,error}=await sb.rpc('public_event',{p_slug:slug});
+ if(error||!data)return closed('Could not load','Please check your connection and refresh.');
+ if(data.reason==='not_found')return closed('Event not found','Please check the link you were given.');
+ EV=data;
+ $('support').textContent=EV.support_contact?'Need help? '+EV.support_contact:'';
+ if(!EV.open){
+  const why={closed:'Online ticket sales are closed for this event.',not_connected:'Online sales are not available yet.',no_tickets:'No online tickets are available right now.'}[EV.reason]||'';
+  return closed(EV.name||'Tickets',why+(EV.support_contact?' Contact: '+EV.support_contact:''));
+ }
+ if(EV.remaining===0||!avail().length)return closed(EV.name,'Sorry, this event is sold out.');
+ $('loading').classList.add('hide');$('shop').classList.remove('hide');
+ $('ev-name').textContent=EV.name;
+ $('ev-when').textContent=EV.event_date?new Date(EV.event_date).toLocaleString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+ $('ev-venue').textContent=EV.venue||'';
+ if(EV.remaining!=null&&EV.remaining<=20)$('ev-left').textContent='Only '+EV.remaining+' left';
+ if(EV.test_mode)$('banner').innerHTML='<div class="note warn"><b>TEST MODE</b>: no real money is taken and these tickets are for testing only.</div>';
+ if(EV.terms){$('terms-box').classList.remove('hide');$('terms').textContent=EV.terms}
+ sel=avail()[0].id;qty=Math.min(qty,maxQty());$('q').textContent=qty;drawTypes();total();
+}
+
+const ERR={
+ sold_out:'Sorry, there are not enough tickets left for that amount. Please choose fewer.',
+ too_many:'You already have several unpaid orders. Please finish one or wait 20 minutes.',
+ bad_quantity:'Please choose a valid number of tickets.',
+ bad_details:'Please check your name and contact details.',
+ bad_ticket:'That ticket type is no longer available. Please refresh.',
+ not_open:'Online sales are closed for this event.',
+ payment_unavailable:'We could not reach the payment provider. You have not been charged. Please try again shortly.'
+};
+async function pay(e){
+ e.preventDefault();if(busy)return;
+ busy=true;$('go').disabled=true;$('go').textContent='Please wait...';note('');
+ try{
+  const r=await fetch(SUPABASE_URL+'/functions/v1/create-checkout',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
+   body:JSON.stringify({slug,type_id:sel,quantity:qty,name:$('name').value.trim(),contact:$('contact').value.trim()})});
+  const d=await r.json().catch(()=>({}));
+  if(r.ok&&d.redirectUrl){location.href=d.redirectUrl;return}
+  if(d.error==='sold_out'&&d.remaining===0)note('Sorry, that ticket has just sold out.','bad');
+  else if(d.error==='sold_out'&&d.remaining>0)note('Only '+d.remaining+' left for that ticket. Please choose fewer.','bad');
+  else note(ERR[d.error]||'Something went wrong. You have not been charged. Please try again. (Code: '+(d.error||d.code||d.msg||d.message||r.status)+')','bad');
+  if(d.error==='sold_out'||d.error==='not_open')init();
+ }catch(_){note('No connection. You have not been charged. Please try again.','bad')}
+ busy=false;$('go').disabled=false;$('go').textContent='Pay securely with Yoco';
+}
+// coming back with the browser Back button should not leave the button stuck
+addEventListener('pageshow',e=>{if(e.persisted){busy=false;$('go').disabled=false;$('go').textContent='Pay securely with Yoco'}});
+init();
+</script>
+</body>
+</html>

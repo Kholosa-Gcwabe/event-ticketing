@@ -1,0 +1,31 @@
+{
+ "name": "For Public Use Gate Scanner",
+ "short_name": "FPU Gate",
+ "id": "/scanner",
+ "start_url": "/scanner.html",
+ "scope": "/",
+ "display": "standalone",
+ "orientation": "portrait",
+ "background_color": "#020617",
+ "theme_color": "#0e74aa",
+ "icons": [
+  {
+   "src": "/icon-scanner-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icon-scanner-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icon-scanner-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}
